@@ -1,0 +1,9 @@
+{
+	"id": "quick-outliner",
+	"name": "Quick Outliner",
+	"version": "0.1.0",
+	"minAppVersion": "0.15.0",
+	"description": "Restructure your document quickly while editing.",
+	"author": "MD",
+	"isDesktopOnly": false
+}
