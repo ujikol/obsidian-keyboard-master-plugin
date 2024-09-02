@@ -20,5 +20,7 @@ data.json
 
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store
+
+# Test framework not yet used
 jest-config.js
 test-all.jest.ts
