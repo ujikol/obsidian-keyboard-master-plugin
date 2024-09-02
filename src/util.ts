@@ -10,7 +10,7 @@ function getIndexOfCurrentHeading(tree: Node[], cursorLine: number): number {
 
 export function getLineRangeOfPreviousBranch(tree: Node[], cursorLine: number): [number, number]|null {
     const currentHeadingIndex = getIndexOfCurrentHeading(tree, cursorLine)
-    var depth = (tree[currentHeadingIndex] as MdastHeading).depth
+    let depth = (tree[currentHeadingIndex] as MdastHeading).depth
     const root = tree.slice(0, currentHeadingIndex).findLast((node) => {
         return node.type === "heading" && (node as MdastHeading).depth <= depth
     })
@@ -21,7 +21,7 @@ export function getLineRangeOfPreviousBranch(tree: Node[], cursorLine: number): 
 
 export function getLineRangeOfBranch(tree: Node[], rootLine: number): [number, number|null] {
     const currentHeadingIndex = getIndexOfCurrentHeading(tree, rootLine)
-    var depth = (tree[currentHeadingIndex] as MdastHeading).depth
+    let depth = (tree[currentHeadingIndex] as MdastHeading).depth
     const next = tree.slice(currentHeadingIndex + 1).find((node) => {
         return node.type === "heading" && (node as MdastHeading).depth <= depth
     })

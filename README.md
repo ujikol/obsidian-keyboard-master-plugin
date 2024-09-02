@@ -1,4 +1,4 @@
-# Obsidian Sample Plugin
+# Obsidian Quick Outliner Plugin
 
 This plugin allows to restructure your documents on the fly. It provides (*keyboard*) commands for:
 - Goto previous/next heading (staying on same level within branch and walk higher when going beyond)
