@@ -1,7 +1,7 @@
 {
 	"id": "quick-outliner",
 	"name": "Quick Outliner",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"minAppVersion": "0.15.0",
 	"description": "Restructure your document on the fly while editing.",
 	"author": "MD",
