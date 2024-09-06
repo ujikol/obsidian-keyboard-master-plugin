@@ -1,4 +1,3 @@
-import { Editor } from 'obsidian'
 import { fromMarkdown } from 'mdast-util-from-markdown'
 import { Heading as Heading } from 'mdast'
 // import { fromMarkdown } from 'mdast-util-from-markdown'
@@ -6,7 +5,7 @@ import { Heading as Heading } from 'mdast'
 
 export function getHeadings(text: string): Heading[] {
     return fromMarkdown(text).children
-        .filter((heading) => heading.type === "heading")
+        .filter((heading) => heading.type === "heading") as Heading[]
 }
 
 export function getHeadingLine(heading: Heading): number {
