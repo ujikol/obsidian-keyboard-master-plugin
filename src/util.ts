@@ -1,91 +1,49 @@
-import { Editor, FoldPosition, HeadingCache } from 'obsidian'
-import { foldable } from "@codemirror/language"
-import { Node, Heading as MdastHeading } from 'mdast'
+import { Editor } from 'obsidian'
+import { fromMarkdown } from 'mdast-util-from-markdown'
+import { Heading as Heading } from 'mdast'
+// import { fromMarkdown } from 'mdast-util-from-markdown'
 
-function getIndexOfCurrentHeading(tree: Node[], cursorLine: number): number {
-    return tree.findIndex((node) => {
-        return node.type === "heading" && node.position!.start.line - 1 === cursorLine
-    })
+
+export function getHeadings(text: string): Heading[] {
+    return fromMarkdown(text).children
+        .filter((heading) => heading.type === "heading")
 }
 
-export function getLineRangeOfPreviousBranch(tree: Node[], cursorLine: number): [number, number]|null {
-    const currentHeadingIndex = getIndexOfCurrentHeading(tree, cursorLine)
-    let depth = (tree[currentHeadingIndex] as MdastHeading).depth
-    const root = tree.slice(0, currentHeadingIndex).findLast((node) => {
-        return node.type === "heading" && (node as MdastHeading).depth <= depth
-    })
-    if (!root || (root as MdastHeading).depth < depth)
-        return null
-    return [root.position!.start.line - 1, cursorLine]
+export function getHeadingLine(heading: Heading): number {
+    return heading.position!.start.line - 1
 }
 
-export function getLineRangeOfBranch(tree: Node[], rootLine: number): [number, number|null] {
-    const currentHeadingIndex = getIndexOfCurrentHeading(tree, rootLine)
-    let depth = (tree[currentHeadingIndex] as MdastHeading).depth
-    const next = tree.slice(currentHeadingIndex + 1).find((node) => {
-        return node.type === "heading" && (node as MdastHeading).depth <= depth
-    })
-    return [tree[currentHeadingIndex].position!.start.line - 1,
-            next ? next.position!.start.line - 1 : null]
+// Returns the index of the branch to which the line belongs, -1 if before first heading
+export function getBranchIndex(headings: Heading[], line: number): number {
+    return headings.findLastIndex((heading) => heading.position!.start.line <= line + 1)
 }
 
-export function getBranch(tree: Node[], cursorLine: number): MdastHeading[] {
-    const [start, end] = getLineRangeOfBranch(tree, cursorLine)
-    return tree.filter((node) => {
-        return node.type === "heading" &&
-               node.position!.start.line > start &&
-               (!end || node.position!.start.line <= end)
-    }) as MdastHeading[]
+// Returns the index of the parent heading, -1 if none
+export function getParentIndex(headings: Heading[], index: number): number {
+    const branchDepth = headings[index].depth
+    let branchIndex = index
+    while (--branchIndex >= 0)
+        if (headings[branchIndex].depth < branchDepth)
+            break
+    return branchIndex
 }
 
-export function getPreviousHeading(tree: Node[], cursorLine: number, depth?: number|null): MdastHeading|null {
-    let heading: MdastHeading|null = null
-    tree.every((node) => {
-        if (node.position!.start.line > cursorLine)
-            return false
-        if (node.type === "heading" && (!depth || (node as MdastHeading).depth <= depth))
-            heading = node as MdastHeading
-        return true
-    })
-    return heading
+// Returns the index of the previous sibling or (grand*) parent heading, -1 if none
+export function getPreviousBranchIndex(headings: Heading[], index: number): number {
+    const branchDepth = headings[index].depth
+    let branchIndex = index
+    while (--branchIndex >= 0)
+        if (headings[branchIndex].depth <= branchDepth)
+            break
+    return branchIndex
 }
 
-export function depthOfHeading(match: RegExpExecArray): number {
-    return match[1]?.length ?? 0 + 1
-}
-
-export function getAllFoldableLines(editor: Editor): FoldPosition[] {
-    if (this.app.vault.getConfig("legacyEditor")) {
-      const foldOpts = editor.cm.state.foldGutter.options
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const getFoldRegion = (editor.cm as any).foldOption(foldOpts, "rangeFinder")
-
-      const foldPositions: FoldPosition[] = []
-      for (let lineNum = 0; lineNum <= editor.lastLine(); lineNum++) {
-        // @ts-ignore
-        const foldRegion = getFoldRegion(editor.cm, CodeMirror.Pos(lineNum, 0))
-        if (foldRegion) {
-          foldPositions.push({
-            from: foldRegion.from.line,
-            to: foldRegion.to.line,
-          });
-        }
-      }
-      return foldPositions
-    }
-
-    const foldPositions: FoldPosition[] = [];
-    for (let lineNum = 0; lineNum <= editor.lastLine(); lineNum++) {
-      const linePos = editor.posToOffset({ line: lineNum, ch: 0 });
-      const foldRegion = foldable(editor.cm.state, linePos, linePos);
-      if (foldRegion) {
-        const foldStartPos = editor.offsetToPos(foldRegion.from);
-        const foldEndPos = editor.offsetToPos(foldRegion.to);
-        foldPositions.push({
-          from: foldStartPos.line,
-          to: foldEndPos.line,
-        });
-      }
-    }
-    return foldPositions;
+// Returns the index of the next sibling or (grand*) uncle heading, -1 if none
+export function getBranchEndIndex(headings: Heading[], startIndex: number): number {
+    const branchDepth = headings[startIndex].depth
+    let endIndex = startIndex
+    while (++endIndex < headings.length)
+        if (headings[endIndex].depth <= branchDepth)
+            return endIndex
+    return -1
 }

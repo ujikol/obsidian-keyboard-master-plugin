@@ -1,55 +1,120 @@
-import { Command, Editor, EditorChange, Notice, MarkdownView, HeadingCache } from 'obsidian'
+import { Command, Editor, EditorChange, Notice, MarkdownView } from 'obsidian'
 import { MyPluginInterface } from "./types.d"
-import { getPreviousHeading, getBranch, getLineRangeOfBranch, getLineRangeOfPreviousBranch,
-    depthOfHeading, getAllFoldableLines } from "./util"
-import { fromMarkdown } from 'mdast-util-from-markdown'
-import { Heading as MdastHeading } from 'mdast' 
+import { getHeadings, getHeadingLine, getBranchIndex, getParentIndex, getPreviousBranchIndex, getBranchEndIndex } from "./util"
+import { Heading } from 'mdast' 
 
 const HeadingRegex = /^#(#{0,5})?\s+/
 
 
-export const gotoPreviousHeading = (plugin: MyPluginInterface): Command => ({
+export const addHeadingBelow = (plugin: MyPluginInterface): Command => ({
     id: 'goto-previous-heading',
     name: 'Goto previous heading',
-    hotkeys: [{ modifiers: ["Alt"], key: "ArrowUp" }],
+    hotkeys: [{ modifiers: ["Alt"], key: "Enter" }],
     editorCallback: (editor: Editor) => {
         const cursor = editor.getCursor()
-        const lineText = editor.getLine(cursor.line)
-        const match = HeadingRegex.exec(lineText)
-        const tree = fromMarkdown(editor.getValue()).children
-        const depth = match ? depthOfHeading(match) : null
-        const heading = getPreviousHeading(tree, cursor.line, depth)
-        if (heading)
-            editor.setCursor((heading as MdastHeading).position!.start.line - 1)
+        const headings = getHeadings(editor.getValue())
+        const currentBranchStartIndex = getBranchIndex(headings, cursor.line)
+        if (currentBranchStartIndex < 0)
+            return
+        const currentBranchEndIndex = getBranchEndIndex(headings, currentBranchStartIndex)
+        let currentBranchEndLine: number
+        if (currentBranchEndIndex >= 0) {
+            currentBranchEndLine = getHeadingLine(headings[currentBranchEndIndex])
+            editor.replaceRange(("#".repeat(headings[currentBranchStartIndex].depth) + " \n"),
+                    { line: currentBranchEndLine, ch: 0 })
+        } else {
+            currentBranchEndLine = editor.lineCount()
+            editor.replaceRange(("\n" + "#".repeat(headings[currentBranchStartIndex].depth) + " "),
+                    { line: currentBranchEndLine, ch: 0 })
+        }
+        editor.setCursor(currentBranchEndLine)
     }
 })
 
-export const gotoNextHeading = (plugin: MyPluginInterface): Command => ({
-    id: 'goto-next-heading',
-    name: 'Goto next heading',
+export const gotoPreviousBranch = (plugin: MyPluginInterface): Command => ({
+    id: 'goto-previous-branch',
+    name: 'Goto previous branch',
+    hotkeys: [{ modifiers: ["Alt"], key: "ArrowUp" }],
+    editorCallback: (editor: Editor) => {
+        const cursor = editor.getCursor()
+        const headings = getHeadings(editor.getValue())
+        let index = getBranchIndex(headings, cursor.line)
+        if (index < 0)
+            return
+        let line = getHeadingLine(headings[index])
+        let ch = cursor.ch
+        if (line === cursor.line) {
+            ch -= headings[index].depth + 1
+            index = getPreviousBranchIndex(headings, index)
+            if (index < 0)
+                return
+        }
+        line = getHeadingLine(headings[index])
+        editor.setCursor(line, Math.min(Math.max(0, ch + headings[index].depth + 1), editor.getLine(line).length))
+    }
+})
+
+export const gotoNextBranch = (plugin: MyPluginInterface): Command => ({
+    id: 'goto-next-branch',
+    name: 'Goto next branch',
     hotkeys: [{ modifiers: ["Alt"], key: "ArrowDown" }],
     editorCallback: (editor: Editor) => {
         const cursor = editor.getCursor()
-        const lineText = editor.getLine(cursor.line)
-        const match = HeadingRegex.exec(lineText)
-        const tree = fromMarkdown(editor.getValue()).children
-        let depth = 1
-        if (match)
-            depth = depthOfHeading(match)
+        const headings = getHeadings(editor.getValue())
+        let index = getBranchIndex(headings, cursor.line)
+        let line: number
+        let ch = cursor.ch
+        if (headings.length === 0)
+            return
+        if (index < 0)
+            index = 0
         else {
-            const previousHeading = getPreviousHeading(tree, cursor.line, null)
-            if (previousHeading)
-                depth = previousHeading.depth + 1
+            line = getHeadingLine(headings[index])
+            if (line !== cursor.line) {
+                index ++
+                if (index === headings.length)
+                    return
+            } else {
+                ch -= headings[index].depth + 1
+                index = getBranchEndIndex(headings, index)
+                if (index < 0)
+                    return
+            }
         }
-        const heading = tree.find((node) => {
-            return (node.position!.start.line > cursor.line + 1) &&
-                   (node.type === "heading" &&
-                   ((node as MdastHeading).depth <= depth))
-        })
-        if (heading)
-            editor.setCursor((heading as MdastHeading).position!.start.line - 1)
+        line = getHeadingLine(headings[index])
+        editor.setCursor(line, Math.min(Math.max(0, ch + headings[index].depth + 1), editor.getLine(line).length))
     }
 })
+
+export const gotoParentHeading = (plugin: MyPluginInterface): Command => ({
+    id: 'goto-parent-heading',
+    name: 'Goto parent heading',
+    hotkeys: [{ modifiers: ["Alt"], key: "Home" }],
+    editorCallback: (editor: Editor) => {
+        const cursor = editor.getCursor()
+        const headings = getHeadings(editor.getValue())
+        let index = getBranchIndex(headings, cursor.line)
+        if (index < 0)
+            return
+        index = getParentIndex(headings, index)
+        if (index < 0)
+            return
+        let line = getHeadingLine(headings[index])
+        let ch = cursor.ch
+        if (line === cursor.line) {
+            ch -= headings[index].depth + 1
+            index = getPreviousBranchIndex(headings, index)
+            if (index < 0)
+                return
+        }
+        line = getHeadingLine(headings[index])
+        editor.setCursor(line, Math.min(Math.max(0, ch + headings[index].depth + 1), editor.getLine(line).length))
+    }
+})
+
+function depthOfHeading(match: RegExpExecArray): number {
+    return (match[1]?.length ?? 0) + 1
+}
 
 export const demoteHeadingCommand = (plugin: MyPluginInterface): Command => ({
     id: 'demote-heading',
@@ -101,15 +166,17 @@ export const demoteBranchCommand = (plugin: MyPluginInterface): Command => ({
         const match = HeadingRegex.exec(lineText)
         if (match) {
             if (!checking) {
-                const tree = fromMarkdown(editor.getValue()).children
-                const headings = getBranch(tree, cursor.line)
-                if (Math.max(...headings.map(h => h.depth)) >= 6) {
+                const headings = getHeadings(editor.getValue())
+                const branchStartIndex = getBranchIndex(headings, cursor.line)
+                const branchEndIndex = getBranchEndIndex(headings, branchStartIndex)
+                const branchHeadings = headings.slice(branchStartIndex, branchEndIndex >= 0 ? branchEndIndex : undefined)
+                if (Math.max(...branchHeadings.map(h => h.depth)) >= 6) {
                     new Notice("Demoting branch would exceed maximum depth of 6!")
                     return false // demoting level 6 headings would break them
                 }
                 let changes: EditorChange[] = []
-                headings.forEach((heading) => {
-                    changes.push({from: {line: heading.position!.start.line - 1, ch: 0}, text: "#"})
+                branchHeadings.forEach((heading) => {
+                    changes.push({from: {line: getHeadingLine(heading), ch: 0}, text: "#"})
                 })
                 editor.transaction({
                     changes: changes
@@ -129,14 +196,20 @@ export const promoteBranchCommand = (plugin: MyPluginInterface): Command => ({
         const cursor = editor.getCursor()
         const lineText = editor.getLine(cursor.line)
         const match = HeadingRegex.exec(lineText)
-        if (match && match[1]) {
+        if (match) {
             if (!checking) {
-                const tree = fromMarkdown(editor.getValue()).children
-                const headings = getBranch(tree, cursor.line)
+                const headings = getHeadings(editor.getValue())
+                const branchStartIndex = getBranchIndex(headings, cursor.line)
+                if (headings[branchStartIndex].depth < 2) {
+                    new Notice("Cannot promote branch of depth 1!")
+                    return false
+                }
+                const branchEndIndex = getBranchEndIndex(headings, branchStartIndex)
+                const branchHeadings = headings.slice(branchStartIndex, branchEndIndex >= 0 ? branchEndIndex : undefined)
                 let changes: EditorChange[] = []
-                headings.forEach((heading) => {
-                    changes.push({from: {line: heading.position!.start.line - 1, ch: 0},
-                                  to: {line: heading.position!.start.line - 1, ch: 1},
+                branchHeadings.forEach((heading) => {
+                    changes.push({from: {line: getHeadingLine(heading), ch: 0},
+                                  to: {line: getHeadingLine(heading), ch: 1},
                                   text: "", })
                 })
                 editor.transaction({
@@ -159,21 +232,28 @@ export const moveBranchUpCommand = (plugin: MyPluginInterface): Command => ({
         const match = HeadingRegex.exec(lineText)
         if (match) {
             if (!checking) {
-                const tree = fromMarkdown(editor.getValue()).children
-                let [currentBranchStartLine, currentBranchEndLine] = getLineRangeOfBranch(tree, cursor.line)
-                if (!currentBranchEndLine)
-                    currentBranchEndLine = editor.lineCount()
-                const prevBranchLineRange = getLineRangeOfPreviousBranch(tree, cursor.line)
-                if (!prevBranchLineRange)
+                const headings = getHeadings(editor.getValue())
+                const currentBranchStartIndex = getBranchIndex(headings, cursor.line)
+                const previousBranchStartIndex = getPreviousBranchIndex(headings, currentBranchStartIndex)
+                if (previousBranchStartIndex <0 ||
+                        headings[previousBranchStartIndex].depth !== headings[currentBranchStartIndex].depth) {
+                    new Notice("Branch has no previous sibling!")
                     return false
-                const branchText = editor.getRange({line: currentBranchStartLine, ch: 0}, {line: currentBranchEndLine, ch: 0})
+                }
+                const currentBranchEndIndex = getBranchEndIndex(headings, currentBranchStartIndex)
+                const currentBranchStartLine = getHeadingLine(headings[currentBranchStartIndex])
+                const currentBranchEndLine = currentBranchEndIndex >= 0 ? getHeadingLine(headings[currentBranchEndIndex]) : editor.lineCount()
+                const previousBranchStartLine = getHeadingLine(headings[previousBranchStartIndex])
+                let branchText = editor.getRange({line: currentBranchStartLine, ch: 0}, {line: currentBranchEndLine, ch: 0})
+                if (!branchText.endsWith("\n"))
+                    branchText = branchText.concat("\n")
                 let changes: EditorChange[] = [
                     {from: {line: currentBranchStartLine, ch: 0}, to: {line: currentBranchEndLine, ch: 0}, text: ""},
-                    {from: {line: prevBranchLineRange[0], ch: 0}, text: branchText},
+                    {from: {line: previousBranchStartLine, ch: 0}, text: branchText},
                 ]
                 editor.transaction({
                     changes: changes,
-                    selection: {from: {line: prevBranchLineRange[0], ch: cursor.ch}}
+                    selection: {from: {line: previousBranchStartLine, ch: cursor.ch}}
                 })
             }
             return true
@@ -192,25 +272,30 @@ export const moveBranchDownCommand = (plugin: MyPluginInterface): Command => ({
         const match = HeadingRegex.exec(lineText)
         if (match) {
             if (!checking) {
-                const tree = fromMarkdown(editor.getValue()).children
-                const [currentBranchStartLine, currentBranchEndLine] = getLineRangeOfBranch(tree, cursor.line)
-                if (!currentBranchEndLine)
+                const headings = getHeadings(editor.getValue())
+                const currentBranchStartIndex = getBranchIndex(headings, cursor.line)
+                const nextBranchStartIndex = getBranchEndIndex(headings, currentBranchStartIndex)
+                if (nextBranchStartIndex < 0 || headings[nextBranchStartIndex].depth !== headings[currentBranchStartIndex].depth) {
+                    new Notice("Branch has no next sibling!")
                     return false
-                let [nextBranchStartLine, nextBranchEndLine] = getLineRangeOfBranch(tree, currentBranchEndLine)!
-                if (depthOfHeading(match) !== depthOfHeading(HeadingRegex.exec(editor.getLine(nextBranchStartLine))!))
-                    return false
-                if (!nextBranchEndLine)
-                    nextBranchEndLine = editor.lineCount()
-                const needsNewLine = nextBranchEndLine === editor.lineCount() && editor.getLine(nextBranchEndLine - 1) !== ""
-                const branchText = (needsNewLine ? "\n" : "") + editor.getRange({line: currentBranchStartLine, ch: 0}, {line: currentBranchEndLine, ch: 0})
+                }
+                const nextBranchEndIndex = getBranchEndIndex(headings, nextBranchStartIndex)
+                const currentBranchStartLine = getHeadingLine(headings[currentBranchStartIndex])
+                const nextBranchStartLine = getHeadingLine(headings[nextBranchStartIndex])
+                let nextBranchEndLine = nextBranchEndIndex >= 0 ? getHeadingLine(headings[nextBranchEndIndex]) : editor.lineCount()
+                let branchText = editor.getRange({line: nextBranchStartLine, ch: 0}, {line: nextBranchEndLine, ch: 0})
+                let newCursorLine = currentBranchStartLine - nextBranchStartLine + nextBranchEndLine
+                if (!branchText.endsWith("\n")) {
+                    branchText = branchText.concat("\n")
+                    newCursorLine++
+                }
                 let changes: EditorChange[] = [
-                    {from: {line: currentBranchStartLine, ch: 0}, to: {line: currentBranchEndLine, ch: 0}, text: ""},
-                    {from: {line: nextBranchEndLine, ch: 0}, text: branchText},
+                    {from: {line: nextBranchStartLine, ch: 0}, to: {line: nextBranchEndLine, ch: 0}, text: ""},
+                    {from: {line: currentBranchStartLine, ch: 0}, text: branchText},
                 ]
                 editor.transaction({
                     changes: changes,
-                    selection: {from: {line: currentBranchStartLine - nextBranchStartLine + nextBranchEndLine -
-                        (!needsNewLine && nextBranchEndLine === editor.lineCount() ? 1 : 0), ch: cursor.ch}}
+                    // selection: {from: {line: newCursorLine, ch: cursor.ch}}
                 })
             }
             return true
@@ -229,21 +314,17 @@ export const copyBranchCommand = (plugin: MyPluginInterface): Command => ({
         const match = HeadingRegex.exec(lineText)
         if (match) {
             if (!checking) {
-                const tree = fromMarkdown(editor.getValue()).children
-                let [currentBranchStartLine, currentBranchEndLine] = getLineRangeOfBranch(tree, cursor.line)
-                if (!currentBranchEndLine)
-                    currentBranchEndLine = editor.lineCount()
-                const branchText = editor.getRange({line: currentBranchStartLine, ch: 0}, {line: currentBranchEndLine, ch: 0})
+                const headings = getHeadings(editor.getValue())
+                const currentBranchStartIndex = getBranchIndex(headings, cursor.line)
+                const currentBranchEndIndex = getBranchEndIndex(headings, currentBranchStartIndex)
+                const currentBranchStartLine = getHeadingLine(headings[currentBranchStartIndex])
+                const currentBranchEndLine = currentBranchEndIndex >= 0 ? getHeadingLine(headings[currentBranchEndIndex]) : editor.lineCount()
+                let branchText = editor.getRange({line: currentBranchStartLine, ch: 0}, {line: currentBranchEndLine, ch: 0})
+                if (!branchText.endsWith("\n")) {
+                    branchText = branchText.concat("\n")
+                }
                 navigator.clipboard.writeText(branchText)
                 new Notice("Copied branch to clipboard.")
-                // let changes: EditorChange[] = [
-                //     {from: {line: currentBranchStartLine, ch: 0}, to: {line: currentBranchEndLine, ch: 0}, text: ""},
-                //     {from: {line: prevBranchLineRange[0], ch: 0}, text: branchText},
-                // ]
-                // editor.transaction({
-                //     changes: changes,
-                //     selection: {from: {line: prevBranchLineRange[0], ch: cursor.ch}}
-                // })
             }
             return true
         }
@@ -261,20 +342,17 @@ export const cutBranchCommand = (plugin: MyPluginInterface): Command => ({
         const match = HeadingRegex.exec(lineText)
         if (match) {
             if (!checking) {
-                const tree = fromMarkdown(editor.getValue()).children
-                let [currentBranchStartLine, currentBranchEndLine] = getLineRangeOfBranch(tree, cursor.line)
-                if (!currentBranchEndLine)
-                    currentBranchEndLine = editor.lineCount()
-                const branchText = editor.getRange({line: currentBranchStartLine, ch: 0}, {line: currentBranchEndLine, ch: 0})
+                const headings = getHeadings(editor.getValue())
+                const currentBranchStartIndex = getBranchIndex(headings, cursor.line)
+                const currentBranchEndIndex = getBranchEndIndex(headings, currentBranchStartIndex)
+                const currentBranchStartLine = getHeadingLine(headings[currentBranchStartIndex])
+                const currentBranchEndLine = currentBranchEndIndex >= 0 ? getHeadingLine(headings[currentBranchEndIndex]) : editor.lineCount()
+                let branchText = editor.getRange({line: currentBranchStartLine, ch: 0}, {line: currentBranchEndLine, ch: 0})
+                if (!branchText.endsWith("\n")) {
+                    branchText = branchText.concat("\n")
+                }
                 navigator.clipboard.writeText(branchText)
                 editor.replaceRange("", {line: currentBranchStartLine, ch: 0}, {line: currentBranchEndLine, ch: 0})
-                // let changes: EditorChange[] = [
-                //     {from: {line: currentBranchStartLine, ch: 0}, to: {line: currentBranchEndLine, ch: 0}, text: ""},
-                // ]
-                // editor.transaction({
-                //     changes: changes,
-                //     selection: {from: {line: prevBranchLineRange[0], ch: cursor.ch}}
-                // })
             }
             return true
         }
@@ -288,12 +366,11 @@ export const pasteBranchCommand = (plugin: MyPluginInterface): Command => ({
     hotkeys: [{ modifiers: ["Alt"], key: "V" }],
     editorCallback: (editor: Editor) => {
         const cursor = editor.getCursor()
-        let line = cursor.line
-        const tree = fromMarkdown(editor.getValue()).children as MdastHeading[]
-        const previousHeading = getPreviousHeading(tree, line + 1)
-        const depth = previousHeading?.depth ?? 1
-        if (previousHeading)
-            line = previousHeading.position!.start.line - 1
+        const lineText = editor.getLine(cursor.line)
+        const match = HeadingRegex.exec(lineText)
+        const headings = getHeadings(editor.getValue())
+        const currentBranchStartIndex = getBranchIndex(headings, cursor.line)
+        const depth = currentBranchStartIndex >= 0 ? headings[currentBranchStartIndex].depth : 1
         navigator.clipboard.readText().then((clipboardText) => {
             let branchText = clipboardText
             const match = HeadingRegex.exec(branchText)
@@ -301,27 +378,25 @@ export const pasteBranchCommand = (plugin: MyPluginInterface): Command => ({
                 new Notice("No branch on clipboard!")
                 return
             }
-            const headings = fromMarkdown(branchText).children.filter((node) => {
-                return node.type === "heading"
-            }) as MdastHeading[]
+            const headings = getHeadings(branchText)
             const depthOffset = depth - headings[0].depth
             if (Math.max(...headings.map(h => h.depth)) + depthOffset > 6) {
                 new Notice("Pasting here would exceed maximum heading depth of 6!")
                 return
             }
-            editor.setCursor({line: line, ch: Math.max(1, cursor.ch)})
+            editor.setCursor({line: cursor.line, ch: Math.max(1, cursor.ch)})
             editor.transaction({
-                changes: [{from: {line: line, ch: 0}, text: branchText}],
+                changes: [{from: {line: cursor.line, ch: 0}, text: branchText}],
             })
             let changes: EditorChange[] = []
             if (depthOffset > 0) {
                 let insert = "#".repeat(depthOffset)
                 headings.forEach((heading) => {
-                    changes.push({from: {line: line + heading.position!.start.line - 1, ch: 0}, text: insert})
+                    changes.push({from: {line: cursor.line + getHeadingLine(heading), ch: 0}, text: insert})
                 })
             } else if (depthOffset < 0) {
                 headings.slice().reverse().forEach((heading) => {
-                    let l = line + heading.position!.start.line - 1
+                    let l = cursor.line + getHeadingLine(heading)
                     changes.push({from: {line: l, ch: 0}, to: {line: l, ch: -depthOffset}, text: ""})
                 })
             }
@@ -339,35 +414,34 @@ export const toggleFolding = (plugin: MyPluginInterface): Command => ({
     hotkeys: [{ modifiers: ["Alt", "Shift"], key: "Key226" }],
     editorCallback: (editor: Editor, view: MarkdownView) => {
         const cursor = editor.getCursor()
-        let line = cursor.line
-        const existingFolds = view.currentMode.getFoldInfo()?.folds ?? []
-        const headings = plugin.app.metadataCache.getFileCache(view.file!)?.headings || []
-        const currentHeading = headings.findLast((heading) => heading.position.start.line <= line)
-        if (!currentHeading)
+        const headings = getHeadings(editor.getValue())
+        const currentBranchStartIndex = getBranchIndex(headings, cursor.line)
+        if (currentBranchStartIndex < 0)
             return
-        if (currentHeading.position.start.line !== line) {
-            line = currentHeading.position.start.line
-            editor.setCursor(line, currentHeading.level + 1)
-        }
+        const heading = headings[currentBranchStartIndex]
+        const line = getHeadingLine(heading)
+        editor.setCursor(line, heading.depth + 1)
+        const existingFolds = view.currentMode.getFoldInfo()?.folds ?? []
         if (existingFolds.some((fold) => fold.from === line)) {
             // Unfold
             view.currentMode.applyFoldInfo({
                 folds: existingFolds.filter((fold) => fold.from !== line),
                 lines: view.editor.lineCount(),
-            });
+            })
         } else {
             // Fold
             const foldPositions = [
                 ...existingFolds,
-                ...headings.filter((h)=> h.position.start.line === line).map((headingInfo) => ({
-                    from: headingInfo.position.start.line,
-                    to: headingInfo.position.start.line + 1,
-                })),
+                ...headings.filter((h)=> getHeadingLine(h) === line)
+                        .map((h) => ({
+                            from: getHeadingLine(h),
+                            to: getHeadingLine(h) + 1,
+                        })),
             ];
             view.currentMode.applyFoldInfo({
                 folds: foldPositions,
                 lines: view.editor.lineCount(),
-            });
+            })
         }
     }
 })
@@ -378,26 +452,29 @@ export const focusFolding = (plugin: MyPluginInterface): Command => ({
     hotkeys: [{ modifiers: ["Alt"], key: "Key226" }],
     editorCallback: (editor: Editor, view: MarkdownView) => {
         const cursor = editor.getCursor()
-        let line = cursor.line
-        const headings = plugin.app.metadataCache.getFileCache(view.file!)?.headings || []
-        const currentHeadingIndex = headings.findLastIndex((heading) => heading.position.start.line <= line)
-        if (currentHeadingIndex === -1)
+        const headings = getHeadings(editor.getValue())
+        const currentBranchStartIndex = getBranchIndex(headings, cursor.line)
+        if (currentBranchStartIndex < 0)
             return
-        let focusHeadings = [headings[currentHeadingIndex]]
-        let level = focusHeadings[0].level
-        for (let index = currentHeadingIndex - 1; index >= 0; index--) {
-            const heading = headings[index]
-            if (heading.level < level) {
-                focusHeadings.push(heading)
-                level = heading.level
+        const heading = headings[currentBranchStartIndex]
+        // editor.setCursor(getHeadingLine(heading), heading.depth + 1)
+        const existingFolds = view.currentMode.getFoldInfo()?.folds ?? []
+        let focusHeadings: Heading[] = []
+        if (currentBranchStartIndex >= 0) {
+            focusHeadings.push(headings[currentBranchStartIndex])
+            let depth = focusHeadings[0].depth
+            for (let index = currentBranchStartIndex - 1; index >= 0; index--) {
+                const heading = headings[index]
+                if (heading.depth < depth) {
+                    focusHeadings.push(heading)
+                    depth = heading.depth
+                }
             }
         }
-        const focusHeadingLines = new Set(focusHeadings.map((heading) => {
-            return heading.position.start.line
-        }))
+        const focusHeadingMdastLines = new Set(focusHeadings.map((h) => getHeadingLine(h)))
         const foldPositions = [
-            ...headings.filter((heading) => !focusHeadingLines.has(heading.position.start.line))
-            .map((heading) => ({from: heading.position.start.line, to: heading.position.start.line + 1})),
+            ...headings.filter((h) =>!focusHeadingMdastLines.has(getHeadingLine(h)))
+                    .map((h) => ({from: getHeadingLine(h), to: getHeadingLine(h) + 1})),
         ];
         view.currentMode.applyFoldInfo({
             folds: foldPositions,
