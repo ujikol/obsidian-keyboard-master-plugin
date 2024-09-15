@@ -67,30 +67,30 @@ Add a CSS snippet, which indents according to outline.
   position: relative;
 }
 h1, .HyperMD-header-1 {
-  left: -60px;
+  left: -6rem;
 }
 h2, .HyperMD-header-2 {
-  left: -50px;
+  left: -5rem;
 }
 h3, .HyperMD-header-3 {
-  left: -40px;
+  left: -4rem;
 }
 h4, .HyperMD-header-4 {
-  left: -30px;
+  left: -3rem;
 }
 h5, .HyperMD-header-5 {
-  left: -20px;
+  left: -2rem;
 }
 h6, .HyperMD-header-6 {
-  left: -10px;
+  left: -1rem;
 }
 div.markdown-preview-view,
 div.markdown-source-view div.cm-content { /* This is used to center note considering shifted titles */
-  padding-left: 60px !important;
-  padding-right: 20px !important;
+  padding-left: 8rem !important;
+  padding-right: 2rem !important;
 }
 ```
-It would be great if somebody could recommend a better one, which indents the paragraphs according to the heading level.
+It would be great if somebody recommend a better one, which indents the paragraphs according to the heading level.
 
 ## Roadmap
 

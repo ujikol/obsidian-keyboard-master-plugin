@@ -1,20 +1,18 @@
 import { fromMarkdown } from 'mdast-util-from-markdown'
 import { Heading as Heading } from 'mdast'
-// import { fromMarkdown } from 'mdast-util-from-markdown'
 
 
+// Returns all headings of the text
 export function getHeadings(text: string): Heading[] {
     return fromMarkdown(text).children
-        .filter((heading) => heading.type === "heading") as Heading[]
+        .filter((heading: Heading) => heading.type === "heading") as Heading[]
 }
 
-export function getHeadingLine(heading: Heading): number {
-    return heading.position!.start.line - 1
-}
+export const getHeadingLine = (heading: Heading) => heading.position!.start.line - 1
 
 // Returns the index of the branch to which the line belongs, -1 if before first heading
 export function getBranchIndex(headings: Heading[], line: number): number {
-    return headings.findLastIndex((heading) => heading.position!.start.line <= line + 1)
+    return headings.findLastIndex((heading: Heading) => heading.position!.start.line <= line + 1)
 }
 
 // Returns the index of the parent heading, -1 if none

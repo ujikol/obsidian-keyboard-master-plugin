@@ -112,9 +112,7 @@ export const gotoParentHeading = (plugin: MyPluginInterface): Command => ({
     }
 })
 
-function depthOfHeading(match: RegExpExecArray): number {
-    return (match[1]?.length ?? 0) + 1
-}
+const depthOfHeading = (match: RegExpExecArray) => (match[1]?.length ?? 0) + 1
 
 export const demoteHeadingCommand = (plugin: MyPluginInterface): Command => ({
     id: 'demote-heading',
@@ -175,7 +173,7 @@ export const demoteBranchCommand = (plugin: MyPluginInterface): Command => ({
                     return false // demoting level 6 headings would break them
                 }
                 let changes: EditorChange[] = []
-                branchHeadings.forEach((heading) => {
+                branchHeadings.forEach((heading: Heading) => {
                     changes.push({from: {line: getHeadingLine(heading), ch: 0}, text: "#"})
                 })
                 editor.transaction({
@@ -207,7 +205,7 @@ export const promoteBranchCommand = (plugin: MyPluginInterface): Command => ({
                 const branchEndIndex = getBranchEndIndex(headings, branchStartIndex)
                 const branchHeadings = headings.slice(branchStartIndex, branchEndIndex >= 0 ? branchEndIndex : undefined)
                 let changes: EditorChange[] = []
-                branchHeadings.forEach((heading) => {
+                branchHeadings.forEach((heading: Heading) => {
                     changes.push({from: {line: getHeadingLine(heading), ch: 0},
                                   to: {line: getHeadingLine(heading), ch: 1},
                                   text: "", })
@@ -371,7 +369,7 @@ export const pasteBranchCommand = (plugin: MyPluginInterface): Command => ({
         const headings = getHeadings(editor.getValue())
         const currentBranchStartIndex = getBranchIndex(headings, cursor.line)
         const depth = currentBranchStartIndex >= 0 ? headings[currentBranchStartIndex].depth : 1
-        navigator.clipboard.readText().then((clipboardText) => {
+        navigator.clipboard.readText().then((clipboardText: string) => {
             let branchText = clipboardText
             const match = HeadingRegex.exec(branchText)
             if (!match) {
@@ -380,7 +378,7 @@ export const pasteBranchCommand = (plugin: MyPluginInterface): Command => ({
             }
             const headings = getHeadings(branchText)
             const depthOffset = depth - headings[0].depth
-            if (Math.max(...headings.map(h => h.depth)) + depthOffset > 6) {
+            if (Math.max(...headings.map((h: Heading) => h.depth)) + depthOffset > 6) {
                 new Notice("Pasting here would exceed maximum heading depth of 6!")
                 return
             }
@@ -391,11 +389,11 @@ export const pasteBranchCommand = (plugin: MyPluginInterface): Command => ({
             let changes: EditorChange[] = []
             if (depthOffset > 0) {
                 let insert = "#".repeat(depthOffset)
-                headings.forEach((heading) => {
+                headings.forEach((heading: Heading) => {
                     changes.push({from: {line: cursor.line + getHeadingLine(heading), ch: 0}, text: insert})
                 })
             } else if (depthOffset < 0) {
-                headings.slice().reverse().forEach((heading) => {
+                headings.slice().reverse().forEach((heading: Heading) => {
                     let l = cursor.line + getHeadingLine(heading)
                     changes.push({from: {line: l, ch: 0}, to: {line: l, ch: -depthOffset}, text: ""})
                 })
@@ -432,8 +430,8 @@ export const toggleFolding = (plugin: MyPluginInterface): Command => ({
             // Fold
             const foldPositions = [
                 ...existingFolds,
-                ...headings.filter((h)=> getHeadingLine(h) === line)
-                        .map((h) => ({
+                ...headings.filter((h: Heading)=> getHeadingLine(h) === line)
+                        .map((h: Heading) => ({
                             from: getHeadingLine(h),
                             to: getHeadingLine(h) + 1,
                         })),
@@ -471,10 +469,10 @@ export const focusFolding = (plugin: MyPluginInterface): Command => ({
                 }
             }
         }
-        const focusHeadingMdastLines = new Set(focusHeadings.map((h) => getHeadingLine(h)))
+        const focusHeadingMdastLines = new Set(focusHeadings.map((h: Heading) => getHeadingLine(h)))
         const foldPositions = [
-            ...headings.filter((h) =>!focusHeadingMdastLines.has(getHeadingLine(h)))
-                    .map((h) => ({from: getHeadingLine(h), to: getHeadingLine(h) + 1})),
+            ...headings.filter((h: Heading) =>!focusHeadingMdastLines.has(getHeadingLine(h)))
+                    .map((h: Heading) => ({from: getHeadingLine(h), to: getHeadingLine(h) + 1})),
         ];
         view.currentMode.applyFoldInfo({
             folds: foldPositions,
