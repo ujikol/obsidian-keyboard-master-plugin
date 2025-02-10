@@ -1,9 +1,9 @@
 {
-	"id": "quick-outliner",
-	"name": "Quick Outliner",
-	"version": "0.1.0",
+	"id": "keyboard-master",
+	"name": "Keyboard Master",
+	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Restructure your document on the fly while editing.",
+	"description": "More and smarter hotkeys",
 	"author": "MD",
 	"isDesktopOnly": false
 }

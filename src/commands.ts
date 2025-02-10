@@ -4,110 +4,139 @@ import { getHeadings, getHeadingLine, getBranchIndex, getParentIndex, getPreviou
 import { Heading } from 'mdast' 
 
 const HeadingRegex = /^#(#{0,5})?\s+/
+const TableRowRegex = /^\s*\|(\s+.*\s+\|)+\s*$/
 
-
-export const addHeadingBelow = (plugin: MyPluginInterface): Command => ({
-    id: 'goto-previous-heading',
-    name: 'Goto previous heading',
-    hotkeys: [{ modifiers: ["Alt"], key: "Enter" }],
+export const addHeading = (plugin: MyPluginInterface): Command => ({
+    id: 'add-heading',
+    name: 'Add heading',
+    // hotkeys: [{ modifiers: ["Alt"], key: "Enter" }],
     editorCallback: (editor: Editor) => {
         const cursor = editor.getCursor()
         const headings = getHeadings(editor.getValue())
         const currentBranchStartIndex = getBranchIndex(headings, cursor.line)
         if (currentBranchStartIndex < 0)
             return
-        const currentBranchEndIndex = getBranchEndIndex(headings, currentBranchStartIndex)
-        let currentBranchEndLine: number
-        if (currentBranchEndIndex >= 0) {
-            currentBranchEndLine = getHeadingLine(headings[currentBranchEndIndex])
-            editor.replaceRange(("#".repeat(headings[currentBranchStartIndex].depth) + " \n"),
-                    { line: currentBranchEndLine, ch: 0 })
+        headings[currentBranchStartIndex].depth
+        const currentBranchDepth = headings[currentBranchStartIndex].depth
+        if (cursor.line === headings[currentBranchStartIndex].position!.start.line - 1 && cursor.ch <= currentBranchDepth + 1) {
+            editor.replaceRange(("#".repeat(currentBranchDepth) + " \n"),
+                    { line: cursor.line, ch: 0 })
+                    editor.setCursor(cursor.line, currentBranchDepth + 1)
         } else {
-            currentBranchEndLine = editor.lineCount()
-            editor.replaceRange(("\n" + "#".repeat(headings[currentBranchStartIndex].depth) + " "),
-                    { line: currentBranchEndLine, ch: 0 })
-        }
-        editor.setCursor(currentBranchEndLine)
+            const currentBranchEndIndex = getBranchEndIndex(headings, currentBranchStartIndex)
+            let currentBranchEndLine: number
+            if (currentBranchEndIndex >= 0) {
+                currentBranchEndLine = getHeadingLine(headings[currentBranchEndIndex])
+                editor.replaceRange(("#".repeat(currentBranchDepth) + " \n"),
+                        { line: currentBranchEndLine, ch: 0 })
+            } else {
+                currentBranchEndLine = editor.lineCount()
+                editor.replaceRange(("\n" + "#".repeat(currentBranchDepth) + " "),
+                        { line: currentBranchEndLine, ch: 0 })
+            }
+            editor.setCursor(currentBranchEndLine)
+            }
     }
 })
 
 export const gotoPreviousBranch = (plugin: MyPluginInterface): Command => ({
     id: 'goto-previous-branch',
     name: 'Goto previous branch',
-    hotkeys: [{ modifiers: ["Alt"], key: "ArrowUp" }],
-    editorCallback: (editor: Editor) => {
+    // hotkeys: [{ modifiers: ["Alt"], key: "ArrowUp" }],
+    editorCheckCallback: (checking: boolean, editor: Editor) => {
         const cursor = editor.getCursor()
-        const headings = getHeadings(editor.getValue())
-        let index = getBranchIndex(headings, cursor.line)
-        if (index < 0)
-            return
-        let line = getHeadingLine(headings[index])
-        let ch = cursor.ch
-        if (line === cursor.line) {
-            ch -= headings[index].depth + 1
-            index = getPreviousBranchIndex(headings, index)
-            if (index < 0)
-                return
+        const lineText = editor.getLine(cursor.line)
+        const match = HeadingRegex.exec(lineText)
+        if (match) {
+            if (!checking) {
+                const headings = getHeadings(editor.getValue())
+                let index = getBranchIndex(headings, cursor.line)
+                if (index < 0)
+                    return
+                let line = getHeadingLine(headings[index])
+                let ch = cursor.ch
+                if (line === cursor.line) {
+                    ch -= headings[index].depth + 1
+                    index = getPreviousBranchIndex(headings, index)
+                    if (index < 0)
+                        return
+                }
+                line = getHeadingLine(headings[index])
+                editor.setCursor(line, Math.min(Math.max(0, ch + headings[index].depth + 1), editor.getLine(line).length))
+            }
+            return true
+        // } else {
+        //     if (lineText.match(TableRowRegex)) {
+        //         return (plugin.app as any).commands.executeCommandById('editor:table-row-before')
+        //     }
         }
-        line = getHeadingLine(headings[index])
-        editor.setCursor(line, Math.min(Math.max(0, ch + headings[index].depth + 1), editor.getLine(line).length))
+        return false
     }
 })
 
 export const gotoNextBranch = (plugin: MyPluginInterface): Command => ({
     id: 'goto-next-branch',
     name: 'Goto next branch',
-    hotkeys: [{ modifiers: ["Alt"], key: "ArrowDown" }],
-    editorCallback: (editor: Editor) => {
+    // hotkeys: [{ modifiers: ["Alt"], key: "ArrowDown" }],
+    editorCheckCallback: (checking: boolean, editor: Editor) => {
         const cursor = editor.getCursor()
-        const headings = getHeadings(editor.getValue())
-        let index = getBranchIndex(headings, cursor.line)
-        let line: number
-        let ch = cursor.ch
-        if (headings.length === 0)
-            return
-        if (index < 0)
-            index = 0
-        else {
-            line = getHeadingLine(headings[index])
-            if (line !== cursor.line) {
-                index ++
-                if (index === headings.length)
+        const lineText = editor.getLine(cursor.line)
+        const match = HeadingRegex.exec(lineText)
+        if (match) {
+            if (!checking) {
+                const headings = getHeadings(editor.getValue())
+                let index = getBranchIndex(headings, cursor.line)
+                let line: number
+                let ch = cursor.ch
+                if (headings.length === 0)
                     return
-            } else {
-                ch -= headings[index].depth + 1
-                index = getBranchEndIndex(headings, index)
                 if (index < 0)
-                    return
+                    index = 0
+                else {
+                    line = getHeadingLine(headings[index])
+                    if (line !== cursor.line) {
+                        index ++
+                        if (index === headings.length)
+                            return
+                    } else {
+                        ch -= headings[index].depth + 1
+                        index = getBranchEndIndex(headings, index)
+                        if (index < 0)
+                            return
+                    }
+                }
+                line = getHeadingLine(headings[index])
+                editor.setCursor(line, Math.min(Math.max(0, ch + headings[index].depth + 1), editor.getLine(line).length))
             }
+            return true
+        // } else {
+        //     if (lineText.match(TableRowRegex)) {
+        //         return (plugin.app as any).commands.executeCommandById('editor:table-row-after')
+        //     }
         }
-        line = getHeadingLine(headings[index])
-        editor.setCursor(line, Math.min(Math.max(0, ch + headings[index].depth + 1), editor.getLine(line).length))
+        return false
     }
 })
 
 export const gotoParentHeading = (plugin: MyPluginInterface): Command => ({
     id: 'goto-parent-heading',
     name: 'Goto parent heading',
-    hotkeys: [{ modifiers: ["Alt"], key: "Home" }],
+    // hotkeys: [{ modifiers: ["Alt"], key: "Home" }],
     editorCallback: (editor: Editor) => {
         const cursor = editor.getCursor()
         const headings = getHeadings(editor.getValue())
         let index = getBranchIndex(headings, cursor.line)
         if (index < 0)
             return
-        index = getParentIndex(headings, index)
-        if (index < 0)
-            return
-        let line = getHeadingLine(headings[index])
         let ch = cursor.ch
+        let line = getHeadingLine(headings[index])
         if (line === cursor.line) {
             ch -= headings[index].depth + 1
-            index = getPreviousBranchIndex(headings, index)
+            index = getParentIndex(headings, index)
             if (index < 0)
                 return
+            line = getHeadingLine(headings[index])
         }
-        line = getHeadingLine(headings[index])
         editor.setCursor(line, Math.min(Math.max(0, ch + headings[index].depth + 1), editor.getLine(line).length))
     }
 })
@@ -117,7 +146,7 @@ const depthOfHeading = (match: RegExpExecArray) => (match[1]?.length ?? 0) + 1
 export const demoteHeadingCommand = (plugin: MyPluginInterface): Command => ({
     id: 'demote-heading',
     name: 'Demote heading',
-    hotkeys: [{ modifiers: ["Alt"], key: "ArrowRight" }],
+    // hotkeys: [{ modifiers: ["Alt"], key: "ArrowRight" }],
     editorCheckCallback: (checking: boolean, editor: Editor) => {
         const cursor = editor.getCursor()
         const lineText = editor.getLine(cursor.line)
@@ -131,6 +160,10 @@ export const demoteHeadingCommand = (plugin: MyPluginInterface): Command => ({
                 editor.replaceRange("#", { line: cursor.line, ch: 0 })
             }
             return true
+        // } else {
+        //     if (lineText.match(TableRowRegex)) {
+        //         return (plugin.app as any).commands.executeCommandById('editor:table-col-after')
+        //     }
         }
         return false
     }
@@ -139,7 +172,7 @@ export const demoteHeadingCommand = (plugin: MyPluginInterface): Command => ({
 export const promoteHeadingCommand = (plugin: MyPluginInterface): Command => ({
     id: 'promote-heading',
     name: 'Promote heading',
-    hotkeys: [{ modifiers: ["Alt"], key: "ArrowLeft" }],
+    // hotkeys: [{ modifiers: ["Alt"], key: "ArrowLeft" }],
     editorCheckCallback: (checking: boolean, editor: Editor) => {
         const cursor = editor.getCursor()
         const lineText = editor.getLine(cursor.line)
@@ -149,6 +182,10 @@ export const promoteHeadingCommand = (plugin: MyPluginInterface): Command => ({
                 editor.replaceRange("", { line: cursor.line, ch: 0 }, { line: cursor.line, ch: 1 })
             }
             return true
+        // } else {
+        //     if (lineText.match(TableRowRegex)) {
+        //         return (plugin.app as any).commands.executeCommandById('editor:table-col-before')
+        //     }
         }
         return false
     }
@@ -157,7 +194,7 @@ export const promoteHeadingCommand = (plugin: MyPluginInterface): Command => ({
 export const demoteBranchCommand = (plugin: MyPluginInterface): Command => ({
     id: 'demote-branch',
     name: 'Demote branch',
-    hotkeys: [{ modifiers: ["Alt", "Shift"], key: "ArrowRight" }],
+    // hotkeys: [{ modifiers: ["Alt", "Shift"], key: "ArrowRight" }],
     editorCheckCallback: (checking: boolean, editor: Editor) => {
         const cursor = editor.getCursor()
         const lineText = editor.getLine(cursor.line)
@@ -181,6 +218,10 @@ export const demoteBranchCommand = (plugin: MyPluginInterface): Command => ({
                 })
             }
             return true
+        // } else {
+        //     if (lineText.match(TableRowRegex)) {
+        //         return (plugin.app as any).commands.executeCommandById('editor:table-col-right')
+        //     }
         }
         return false
     }
@@ -189,7 +230,7 @@ export const demoteBranchCommand = (plugin: MyPluginInterface): Command => ({
 export const promoteBranchCommand = (plugin: MyPluginInterface): Command => ({
     id: 'promote-branch',
     name: 'Promote branch',
-    hotkeys: [{ modifiers: ["Alt", "Shift"], key: "ArrowLeft" }],
+    // hotkeys: [{ modifiers: ["Alt", "Shift"], key: "ArrowLeft" }],
     editorCheckCallback: (checking: boolean, editor: Editor) => {
         const cursor = editor.getCursor()
         const lineText = editor.getLine(cursor.line)
@@ -215,6 +256,10 @@ export const promoteBranchCommand = (plugin: MyPluginInterface): Command => ({
                 })
             }
             return true
+        // } else {
+        //     if (lineText.match(TableRowRegex)) {
+        //         return (plugin.app as any).commands.executeCommandById('editor:table-col-left')
+        //     }
         }
         return false
     }
@@ -223,7 +268,7 @@ export const promoteBranchCommand = (plugin: MyPluginInterface): Command => ({
 export const moveBranchUpCommand = (plugin: MyPluginInterface): Command => ({
     id: 'move-branch-up',
     name: 'Move branch up',
-    hotkeys: [{ modifiers: ["Alt", "Shift"], key: "ArrowUp" }],
+    // hotkeys: [{ modifiers: ["Alt", "Shift"], key: "ArrowUp" }],
     editorCheckCallback: (checking: boolean, editor: Editor) => {
         const cursor = editor.getCursor()
         const lineText = editor.getLine(cursor.line)
@@ -255,6 +300,12 @@ export const moveBranchUpCommand = (plugin: MyPluginInterface): Command => ({
                 })
             }
             return true
+        // } else {
+        //     if (lineText.match(TableRowRegex)) {
+        //         return (plugin.app as any).commands.executeCommandById('editor:table-row-up')
+        //     } else {
+        //         return (plugin.app as any).commands.executeCommandById('editor:swap-line-up')
+        //     }
         }
         return false
     }
@@ -263,7 +314,7 @@ export const moveBranchUpCommand = (plugin: MyPluginInterface): Command => ({
 export const moveBranchDownCommand = (plugin: MyPluginInterface): Command => ({
     id: 'move-branch-down',
     name: 'Move branch down',
-    hotkeys: [{ modifiers: ["Alt", "Shift"], key: "ArrowDown" }],
+    // hotkeys: [{ modifiers: ["Alt", "Shift"], key: "ArrowDown" }],
     editorCheckCallback: (checking: boolean, editor: Editor) => {
         const cursor = editor.getCursor()
         const lineText = editor.getLine(cursor.line)
@@ -297,6 +348,12 @@ export const moveBranchDownCommand = (plugin: MyPluginInterface): Command => ({
                 })
             }
             return true
+        // } else {
+        //     if (lineText.match(TableRowRegex)) {
+        //         return (plugin.app as any).commands.executeCommandById('editor:table-row-down')
+        //     } else {
+        //         return (plugin.app as any).commands.executeCommandById('editor:swap-line-down')
+        //     }
         }
         return false
     }
@@ -305,7 +362,7 @@ export const moveBranchDownCommand = (plugin: MyPluginInterface): Command => ({
 export const copyBranchCommand = (plugin: MyPluginInterface): Command => ({
     id: 'copy-branch',
     name: 'Copy branch',
-    hotkeys: [{ modifiers: ["Alt"], key: "C" }],
+    // hotkeys: [{ modifiers: ["Alt"], key: "C" }],
     editorCheckCallback: (checking: boolean, editor: Editor) => {
         const cursor = editor.getCursor()
         const lineText = editor.getLine(cursor.line)
@@ -333,7 +390,7 @@ export const copyBranchCommand = (plugin: MyPluginInterface): Command => ({
 export const cutBranchCommand = (plugin: MyPluginInterface): Command => ({
     id: 'cut-branch',
     name: 'Cut branch',
-    hotkeys: [{ modifiers: ["Alt"], key: "X" }],
+    // hotkeys: [{ modifiers: ["Alt"], key: "X" }],
     editorCheckCallback: (checking: boolean, editor: Editor) => {
         const cursor = editor.getCursor()
         const lineText = editor.getLine(cursor.line)
@@ -361,7 +418,7 @@ export const cutBranchCommand = (plugin: MyPluginInterface): Command => ({
 export const pasteBranchCommand = (plugin: MyPluginInterface): Command => ({
     id: 'paste-branch',
     name: 'Paste branch',
-    hotkeys: [{ modifiers: ["Alt"], key: "V" }],
+    // hotkeys: [{ modifiers: ["Alt"], key: "V" }],
     editorCallback: (editor: Editor) => {
         const cursor = editor.getCursor()
         const lineText = editor.getLine(cursor.line)
@@ -409,7 +466,7 @@ export const pasteBranchCommand = (plugin: MyPluginInterface): Command => ({
 export const toggleFolding = (plugin: MyPluginInterface): Command => ({
     id: 'toggle-folding',
     name: 'Toggle folding',
-    hotkeys: [{ modifiers: ["Alt", "Shift"], key: "Key226" }],
+    // hotkeys: [{ modifiers: ["Alt", "Shift"], key: "Key226" }],
     editorCallback: (editor: Editor, view: MarkdownView) => {
         const cursor = editor.getCursor()
         const headings = getHeadings(editor.getValue())
@@ -447,7 +504,7 @@ export const toggleFolding = (plugin: MyPluginInterface): Command => ({
 export const focusFolding = (plugin: MyPluginInterface): Command => ({
     id: 'focus-folding',
     name: 'Focus folding',
-    hotkeys: [{ modifiers: ["Alt"], key: "Key226" }],
+    // hotkeys: [{ modifiers: ["Alt"], key: "Key226" }],
     editorCallback: (editor: Editor, view: MarkdownView) => {
         const cursor = editor.getCursor()
         const headings = getHeadings(editor.getValue())

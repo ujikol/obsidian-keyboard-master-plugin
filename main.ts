@@ -1,6 +1,7 @@
 import { Plugin } from 'obsidian'
-import { addHeadingBelow, gotoPreviousBranch, gotoNextBranch, gotoParentHeading, demoteHeadingCommand, promoteHeadingCommand, demoteBranchCommand, promoteBranchCommand,
+import { addHeading, gotoPreviousBranch, gotoNextBranch, gotoParentHeading, demoteHeadingCommand, promoteHeadingCommand, demoteBranchCommand, promoteBranchCommand,
 	moveBranchUpCommand, moveBranchDownCommand, copyBranchCommand, cutBranchCommand, pasteBranchCommand, toggleFolding, focusFolding } from "src/commands"
+import { addHotkeys } from "src/hotkeys"
 
 
 export default class MyPlugin extends Plugin {
@@ -21,7 +22,8 @@ export default class MyPlugin extends Plugin {
 		this.addCommand(pasteBranchCommand(this))
 		this.addCommand(toggleFolding(this))
 		this.addCommand(focusFolding(this))
-		this.addCommand(addHeadingBelow(this))
+		this.addCommand(addHeading(this))
+		addHotkeys(this)
 	}
 
 	onunload() {
